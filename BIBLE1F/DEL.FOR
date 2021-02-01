@@ -1,0 +1,691 @@
+	PROGRAM BIBLE3
+	PARAMETER ( MAXWRD = 25 000 )
+	PARAMETER ( NDIMW  =	190 )
+	PARAMETER ( NLENW  =   1024 )
+C       PARAMETER ( MAXVRS =    250 )
+        parameter ( maxlin =     80 )
+c
+	character*(maxlin) a
+c       character*maxvrs b
+	character*16	 books(67) , BOOK
+	CHARACTER*32 AWORD
+	CHARACTER*80 ALN
+	character*(nlenw)  words(ndimw)
+	character*10	 fname , FMT1 , FMT2
+	INTEGER*2 I2WRD , IBSHI , IBSLOW
+c
+	dimension lws(256) , lwl(256)
+        dimension iws(maxwrd) , iwl(maxwrd)
+c
+	integer*2 itvers , ivers , ichap , i2zero
+	integer*1 iwl , lwl , nwl
+C
+	LOGICAL NEWSENT
+	LOGICAL ICAP
+	LOGICAL GOODNA
+c
+	common /prsdat/ a , lws , lwl , nwl , itvers , ivers , ichap
+	COMMON /BOOK/ BOOK
+	common /cnts/	aword , laword , lastwd , lastsb
+     +			, NHASH
+	COMMON /ERR/ IER
+        common /iws/ iws
+        common /iwl/ iwl
+        common /words/ words
+	COMMON /FMTS/ FMT1 , FMT2
+	COMMON /BUF/ I2IX(256) , LASTAD , IRECIN , IRMOD
+	INTEGER*2 I2IX
+	COMMON /VERTOC/ IADVER(500) , LASTVR , IBASVR
+	INTEGER*2 IADVER , LASTVR
+	COMMON /BOKTOC/ IADBOK(67)
+	COMMON /CHPTOC/ IADCHP(1200) , LASTCH
+C
+	INTEGER*2 IDUP , I2ADD
+	DIMENSION IDUP(MAXWRD)
+C
+	FMT1 = '( I1 )'
+	FMT2 = '( I2 )'
+	NEWSENT = .TRUE.
+	NHASH = 0
+	I2ZERO = 0
+	LASTVR = 0
+	LASTCH = 0
+	LASTAD = 10
+	MLAWRD = 0
+	ITVERS = 0
+	IRMOD = 0
+	IRECIN = -1
+c
+	DO 88 I = 1 , MAXWRD
+	iws(I) = 0
+	iwl(I) = 0
+	IDUP(I) = I
+   88	CONTINUE
+c
+	lastwd = 0
+	lastsb = 1
+c
+	OPEN ( UNIT = 2 , FILE = 'DUPWRD.TXT' , STATUS = 'OLD' ,
+     +	       BLOCKSIZE = 15 000 )
+   89	CONTINUE
+	READ ( 2 , 90 , END = 91 ) I , I2ADD
+   90	FORMAT ( 2I10 )
+	IDUP(I) = I2ADD
+	GO TO 89
+   91	CONTINUE
+	CLOSE ( 2 )
+C
+	OPEN ( UNIT = 10 , FILE = 'KJB2P0.DAT' , STATUS = 'UNKNOWN' ,
+     +	       FORM = 'UNFORMATTED' , ACCESS = 'DIRECT' , RECL = 512 )
+	OPEN ( UNIT = 11 , FILE = 'TAPE1.DAT' , STATUS = 'UNKNOWN' ,
+     +	       FORM = 'UNFORMATTED' , BLOCKSIZE = 30 000 )
+c
+	LASTAD = 1
+	CALL CHGWRD ( AWORD , 6 , LASTAD )
+	PRINT * , ' VERSION = ' , AWORD(1:6)
+	LASTAD = 4
+	CALL I4GWRD ( LOCTOC , LASTAD )
+	PRINT * , ' LOCATION OF TOC =' ,  LOCTOC
+	LASTAD = 6
+	CALL I4GWRD ( LOCWL , LASTAD )
+	PRINT * , ' LOCATION OF WORD LIST =' ,	LOCWL
+	CALL GETOC ( LOCTOC )
+	CALL GETWL ( LOCWL )
+	PRINT * , ' LASTAD =' , LASTAD
+	LSTAD = LASTAD - 8
+C	 CALL CHGWRD ( AWORD , 32 , LSTAD )
+C	 PRINT * , AWORD
+	DO 677 IB = 1 , 66
+	    ICS = IADBOK(IB)
+	    ICE = IADBOK(IB+1) - 1
+	    ICHAP = 0
+	    DO 676 J = ICS , ICE
+		ICHAP = ICHAP + 1
+		ICP = IADCHP(J)
+		CALL GETWRD ( LASTVR , ICP )
+		ICP = ICP + 1
+		CALL GETWRD ( IBSHI , ICP )
+		ICP = ICP + 1
+		CALL GETWRD ( IBSLOW , ICP )
+		IBASVR = IBSHI * 32 767 + IBSLOW
+		DO 675 K = 1 , LASTVR
+		    ICP = ICP + 1
+		    CALL GETWRD ( IADVER(K) , ICP )
+  675		CONTINUE
+		DO 674 K = 1 , LASTVR - 1
+		    IVS = IADVER(K) + IBASVR
+		    IVE = IADVER(K+1) + IBASVR - 1
+		    DO 673 I = IVS , IVE
+			CALL GETWRD ( I2WRD , I )
+			IF ( I2WRD .NE. 0 ) THEN
+			    CALL PUTWRD ( IDUP(I2WRD) , I )
+			ELSE
+			    CALL PUTWRD ( I2WRD , I )
+			END IF
+  673		    CONTINUE
+  674		CONTINUE
+  676	    CONTINUE
+  677	CONTINUE
+	DO 777 IB = 1 , 66
+	    ICS = IADBOK(IB)
+	    ICE = IADBOK(IB+1) - 1
+	    ICHAP = 0
+	    DO 776 J = ICS , ICE
+		ICHAP = ICHAP + 1
+		IF ( IO .NE. 0 ) PRINT 770 , ALN(1:IO)
+  770		FORMAT ( A )
+		IO = 0
+		PRINT 771 , ICHAP
+  771		FORMAT ( /// ' CHAPTER' , I4 / )
+		ICP = IADCHP(J)
+		IF(ICHAP.EQ.-38)PRINT*,'ICP=',ICP
+		CALL GETWRD ( LASTVR , ICP )
+		IF(ICHAP.EQ.-38)PRINT*,'LASTVR=',LASTVR
+		ICP = ICP + 1
+		CALL GETWRD ( IBSHI , ICP )
+		IF(ICHAP.EQ.-38)PRINT*,'IBSHI=',IBSHI
+		ICP = ICP + 1
+		CALL GETWRD ( IBSLOW , ICP )
+		IF(ICHAP.EQ.-38)PRINT*,'IBSLOW=',IBSLOW
+		IBASVR = IBSHI * 32 767 + IBSLOW
+		IF(ICHAP.EQ.-38)PRINT*,'IBASVR=',IBASVR
+		DO 775 K = 1 , LASTVR
+		    ICP = ICP + 1
+		    CALL GETWRD ( IADVER(K) , ICP )
+  775		CONTINUE
+		DO 774 K = 1 , LASTVR - 1
+		    IF(ICHAP.EQ.-38)PRINT*,'IADVER(K)=',IADVER(K)
+		    IVS = IADVER(K) + IBASVR
+		    IVE = IADVER(K+1) + IBASVR - 1
+		    IF(ICHAP.EQ.-38)PRINT*,'IVS,IVE=',IVS,IVE
+		    IF ( IO .NE. 0 ) PRINT 770 , ALN(1:IO)
+		    CALL NCODE ( K , ALN , IO )
+		    DO 773 I = IVS , IVE
+			CALL GETWRD ( I2WRD , I )
+			IF(ICHAP.EQ.-38)PRINT*,'I2WRD=',I2WRD
+			IF ( I .EQ. IVS .AND. I2WRD .EQ. 0 ) THEN
+			    ICAP = .TRUE.
+			    GO TO 773
+			END IF
+			IF ( IWL(I2WRD) .LE. 0 .OR. IWL(I2WRD) .GT.
+     +							   127 ) THEN
+			    PRINT * , ' **** ERROR **** I,IVS,I2WRD,IWS='
+     +				    , I , IVS , I2WRD , IWS(I2WRD)
+			    GO TO 773
+			END IF
+			IS1 = IWS(I2WRD)
+			IS1A = MOD ( IS1 , NLENW )
+			ID1 = IS1 / NLENW + 1
+			IF ( IS1A .EQ. 0 ) THEN
+			    ID1 = ID1 - 1
+			    IS1A = NLENW
+			END IF
+			IS2 = IS1A + IWL(I2WRD) - 1
+			IF(ICHAP.EQ.-38)PRINT*,'IS1,IS1A,ID1,IS2=',
+     +					       IS1,IS1A,ID1,IS2
+			IF(ICHAP.EQ.-38)PRINT*,'WORD=',WORDS(ID1)(IS1A:IS2)
+			IF ( IO + IWL(I2WRD) + 1 .GT. 78 .AND. I2WRD
+     +			     .GT. 7 ) THEN
+			    PRINT 770 , ALN(1:IO)
+			    IO = 0
+			END IF
+			IF ( I2WRD .GT. 7 ) THEN
+			    IO = IO + 1
+			    ALN(IO:IO) = ' '
+			END IF
+			IOS = IO + 1
+			IO = IO + IWL(I2WRD)
+			ALN(IOS:IO) = WORDS(ID1)(IS1A:IS2)
+			IF ( ICAP ) THEN
+			    IC1 = ICHAR ( WORDS(ID1)(IS1A:IS1A) )
+			    IF ( IC1 .GT. 96 ) IC1 = IC1 - 32
+			    ALN(IOS:IOS) = CHAR ( IC1 )
+			    ICAP = .FALSE.
+			END IF
+			IF ( I2WRD .LT. 4 ) THEN
+			    ICAP = .TRUE.
+			    IO = IO + 1
+			    ALN(IO:IO) = ' '
+			END IF
+  773		    CONTINUE
+  774		CONTINUE
+  776	    CONTINUE
+  777	CONTINUE
+	END
+	SUBROUTINE GETOC ( LOCTC )
+	COMMON /BUF/ I2IX(256) , LASTAD , IRECIN , IRMOD
+	INTEGER*2 I2IX
+	COMMON /BOKTOC/ IADBOK(67)
+	COMMON /CHPTOC/ IADCHP(1200) , LASTCH
+	CALL I4GWRD ( LASTCH , LOCTC )
+	PRINT * , ' LAST CHAPTER =' , LASTCH
+	IAD = LOCTC
+	DO 100 I = 1 , LASTCH
+	IAD = IAD + 2
+	    CALL I4GWRD ( IADCHP(I) , IAD )
+C	    IF ( I .LT. 4 .OR. I .GT. LASTCH - 5 )
+C     + 	 PRINT * , ' LOCATION OF CHAPTER' , I , ' IS' ,
+		PRINT * , ' LOCATION OF CHAPTER' , I , ' IS' ,
+     +			  IADCHP(I)
+  100	CONTINUE
+	DO 200 I = 1 , 67
+	IAD = IAD + 2
+	    CALL I4GWRD ( IADBOK(I) , IAD )
+	    IF ( I .LT. 4 .OR. I .GT. 65 )
+     +		PRINT * , ' LOCATION OF BOOK' , I , ' IS' ,
+     +			  IADBOK(I)
+  200	CONTINUE
+	RETURN
+	END
+	SUBROUTINE WRTCT ( ICH )
+	COMMON /BUF/ I2IX(256) , LASTAD , IRECIN , IRMOD
+	INTEGER*2 I2IX
+	COMMON /VERTOC/ IADVER(500) , LASTVR , IBASVR
+	INTEGER*2 IADVER , LASTVR
+	COMMON /BOKTOC/ IADBOK(67)
+	COMMON /CHPTOC/ IADCHP(1200) , LASTCH
+	INTEGER*2 IHIADD , ILOADD , ICH
+	IF ( ICH .EQ. 1 ) RETURN
+	LASTVR = LASTVR + 1
+	IADVER(LASTVR) = LASTAD + 1 - IBASVR
+	CALL PUTWRD ( LASTVR , LASTAD )
+	LASTAD = LASTAD + 1
+	LASTCH = LASTCH + 1
+	IADCHP(LASTCH) = LASTAD
+	IHIADD = IBASVR / 32 767
+	ILOADD = MOD ( IBASVR , 32 767 )
+	CALL PUTWRD ( IHIADD , LASTAD )
+	LASTAD = LASTAD + 1
+	CALL PUTWRD ( ILOADD , LASTAD )
+	LASTAD = LASTAD + 1
+	DO 100 I = 1 , LASTVR
+	    CALL PUTWRD ( IADVER(I) , LASTAD )
+	    LASTAD = LASTAD + 1
+  100	CONTINUE
+	LASTVR = 0
+	IBASVR = LASTAD + 1
+	RETURN
+	END
+	SUBROUTINE GETWL ( IAD )
+	PARAMETER ( MAXWRD = 25 000 )
+	PARAMETER ( NDIMW  =	190 )
+	PARAMETER ( NLENW  =   1024 )
+c
+	character*(nlenw)  words(ndimw)
+	CHARACTER*32 AWORD
+c
+        dimension iws(maxwrd) , iwl(maxwrd)
+c
+	integer*1 iwl
+C
+	common /cnts/	aword , laword , lastwd , lastsb
+     +			, NHASH
+        common /iws/ iws
+        common /iwl/ iwl
+        common /words/ words
+	COMMON /BUF/ I2IX(256) , LASTAD , IRECIN , IRMOD
+	INTEGER*2 I2IX
+	CALL I4GWRD ( MAXW , IAD )
+C	 PRINT * , ' MAXWORD IN FILE =' , MAXW , ' MAXWORD OF PROGRAM ='
+C     + 	 , MAXWRD
+	IF ( MAXW .NE. MAXWRD ) STOP 3000
+	IAD1 = IAD + 2
+	CALL I1GWRD ( IWL , MAXW , IAD1 )
+	IAD1 = IAD1 + MAXW / 2 + MOD ( MAXW , 2 )
+	ICJK = 0
+	DO 3000 I = 1 , MAXW
+	    ICJK = ICJK + 1
+	    IF ( IWL(I) .EQ. 0 ) GO TO 3000
+	    CALL I4GWRD ( IWS(I) , IAD1 )
+C	     IF ( ICJK .LT. 10 ) THEN
+C		 PRINT * , ' LENGTH OF WORD' , I , ' IS' , IWL(I) ,
+C     + 	 ' STARTING ADDRESS = ' , IWS(I)
+C	     END IF
+	    IAD1 = IAD1 + 2
+ 3000	CONTINUE
+	CALL I4GWRD ( LASTSB , IAD1 )
+	PRINT * , ' TOTAL NUMBER OF BLOCKS USED FOR WORD LIST =',LASTSB
+	IAD1 = IAD1 + 2
+	CALL I4GWRD ( LASTWD , IAD1 )
+	PRINT * , ' NUMBER OF CHRACTERS STORED IN LAST BLOCK =',LASTWD
+	IAD1 = IAD1 + 2
+	DO 3100 I = 1 , LASTSB - 1
+	CALL CHGWRD ( WORDS(I)(1:NLENW) , NLENW , IAD1 )
+C	 IF ( I .LT. 3 ) PRINT * , WORDS(I)(1:78)
+	IAD1 = IAD1 + NLENW / 2 + MOD ( NLENW , 2 )
+ 3100	CONTINUE
+	IF ( LASTWD .NE. 0 ) THEN
+	   LSTWDF = ( ( LASTWD + 1 ) / 2 ) * 2
+	   CALL CHGWRD ( WORDS(LASTSB)(1:LSTWDF) , LSTWDF , IAD1 )
+	END IF
+	LASTAD = IAD1 + LASTWD / 2 + MOD ( LASTWD , 2 )
+C	 MADD = 0
+C	 DO 3101 I = 1 , MAXW
+C	     IF ( IWL(I) .EQ. 0 ) GO TO 3101
+C	     IS1 = IWS(I)
+C	     MADD = MAX ( MADD , IS1 )
+C	     IS1A = MOD ( IS1 , NLENW )
+C	     ID1 = IS1 / NLENW + 1
+C	     IF ( IS1A .EQ. 0 ) THEN
+C		 ID1 = ID1 - 1
+C		 IS1A = NLENW
+C	     END IF
+C	     IS2 = IS1A + IWL(I) - 1
+C	    PRINT * , ' WORD' , I , ' = ' , WORDS(ID1)(IS1A:IS2)
+C 3101	 CONTINUE
+C	 PRINT * , ' LAST WORD ADDRESS USED WAS' , LASTAD
+C	 PRINT * , ' HIGHEST STRING ADDRESS FOUND =' , MADD
+	RETURN
+	END
+	SUBROUTINE FNDWRD ( I2HASH )
+	PARAMETER ( MAXWRD = 25 000 )
+	PARAMETER ( NDIMW  =	190 )
+	PARAMETER ( NLENW  =   1024 )
+C       PARAMETER ( MAXVRS =    250 )
+        parameter ( maxlin =     80 )
+c
+	character*(maxlin) a
+c       character*maxvrs b
+	character*16 BOOK
+	CHARACTER*32 AWORD
+	character*(nlenw)  words(ndimw)
+c
+	dimension lws(256) , lwl(256)
+        dimension iws(maxwrd) , iwl(maxwrd)
+c
+	integer*2 itvers , ivers , ichap
+	integer*1 iwl , lwl , nwl
+c
+	common /prsdat/ a , lws , lwl , nwl , itvers , ivers , ichap
+	COMMON /BOOK/ BOOK
+	common /cnts/	aword , laword , lastwd , lastsb
+     +			, NHASH
+	COMMON /ERR/ IER
+        common /iws/ iws
+        common /iwl/ iwl
+        common /words/ words
+c
+	INTEGER*2 I2HASH
+	IHASH = 0
+	LASTC = 1
+	DO 10 I = 1 , LAWORD
+	    IHASH = IHASH + ICHAR ( AWORD(I:I) ) * LASTC
+	    LASTC = ICHAR ( AWORD(I:I) )
+   10	CONTINUE
+	IHASH = MOD ( IHASH , MAXWRD )
+	IF ( IHASH .EQ. 0 ) IHASH = MAXWRD
+    1	FORMAT ( ' AWORD,IHASH = ' , A , I10 )
+	GO TO 30
+   20	CONTINUE
+	IHASH = IHASH + 1
+	IF ( IHASH .GT. MAXWRD ) IHASH = 1
+   30	CONTINUE
+	IF ( IWL(IHASH) .EQ. 0 ) THEN
+       WRITE ( * , 1 ) ' AWORD(1:LAWORD),IHASH',AWORD(1:LAWORD),IHASH
+       WRITE ( * , * ) ' IWL(IHASH),LAWORD = ' ,IWL(IHASH),LAWORD
+	    STOP 3030
+	ELSE
+	    IF ( IWL(IHASH) .NE. LAWORD ) GO TO 20
+	    INDX = IWS(IHASH)/NLENW + 1
+	    ILOC = MOD ( IWS(IHASH) , NLENW )
+	    IF ( ILOC .EQ. 0 ) THEN
+		INDX = INDX - 1
+		ILOC = NLENW
+	    END IF
+C	     WRITE ( * , * ) ' INDX,ILOC = ' , INDX , ILOC
+C	     WRITE ( * , * ) ' ' , WORDS(INDX)(ILOC:ILOC-1+IWL(IHASH))
+	    IF ( WORDS(INDX)(ILOC:ILOC-1+IWL(IHASH)) .NE.
+     +		 AWORD(1:LAWORD) ) GO TO 20
+	END IF
+	I2HASH = IHASH
+	RETURN
+	END
+	SUBROUTINE PARSE
+        parameter ( maxlin =     80 )
+	PARAMETER ( MAXWRD = 25 000 )
+	CHARACTER*32 AWORD
+	CHARACTER*16 BOOK
+	CHARACTER*10 FORM , FMT1 , FMT2
+	CHARACTER*1 PUNCT
+	character*(maxlin) a
+c
+	DIMENSION PUNCT(8) , IJK(20)
+	dimension lws(256) , lwl(256)
+c
+	integer*2 itvers , ivers , ichap
+	integer*1 lwl , nwl
+c
+	common /prsdat/ a , lws , lwl , nwl , itvers , ivers , ichap
+	COMMON /BOOK/ BOOK
+	common /cnts/	aword , laword , lastwd , lastsb
+     +			, NHASH
+	COMMON /FMTS/ FMT1 , FMT2
+	COMMON /ERR/ IER
+	COMMON /BUF/ I2IX(256) , LASTAD , IRECIN , IRMOD
+	INTEGER*2 I2IX
+	COMMON /VERTOC/ IADVER(500) , LASTVR , IBASVR
+	INTEGER*2 IADVER , LASTVR
+C
+	DATA PUNCT / '.' , ',' , '?' , ':' , ';' , '!' , '(' , ')' /
+C
+	NWL = 0
+	IBEG = 1
+	IF ( A(1:1) .EQ. 'C' ) THEN
+	    IF ( A(1:7) .NE. 'CHAPTER' ) GO TO 1
+	    IF ( ICHAP .NE. 0 ) WRITE ( 3 , 33 ) BOOK , ICHAP ,
+     +						IVERS , LASTSB
+	    CALL WRTCT ( ICHAP )
+   33	    FORMAT ( 1X , A , 2I5 , I8 )
+	    DO 2 I = 8 , MAXLIN
+		J = I
+		IF ( A(I:I) .NE. ' ' ) GO TO 3
+    2	    CONTINUE
+    3	    CONTINUE
+	    IF ( J .EQ. MAXLIN ) STOP 222
+	    DO 4 I = J+1 , MAXLIN
+		K = I
+		IF ( A(I:I) .EQ. ' ' ) GO TO 5
+    4	    CONTINUE
+    5	    CONTINUE
+	    IF ( K - J .EQ. 1 ) THEN
+		READ ( A(J:K-1) , FMT1 ) ICHAP
+	    ELSE IF ( K - J .EQ. 2 ) THEN
+		READ ( A(J:K-1) , FMT2 ) ICHAP
+	    ELSE
+		DO 88 JK = 1 , 20
+		   IJK(JK) = ICHAR ( A(JK:JK) )
+   88		CONTINUE
+		WRITE ( * , 89 ) IJK
+   89		FORMAT ( 16I5 )
+		IER = 4
+		RETURN
+	    END IF
+	    IVERS = 0
+	    RETURN
+	END IF
+    1	CONTINUE
+	IF ( A(1:1) .GE. '0' .AND. A(1:1) .LE. '9' ) THEN
+C	    LAST ?
+	    DO 10 I = 1 , MAXLIN
+		J = I
+		IF ( A(I:I) .EQ. ' ' ) GO TO 20
+		IF ( A(I:I) .LT. '0' .OR. A(I:I) .GT. '9' )
+     +		     GO TO 30
+   10		CONTINUE
+		STOP 101
+   20	    CONTINUE
+	    J = J - 1
+	    IF ( J .EQ. 1 ) THEN
+		READ ( A(1:J) , FMT1 ) NEWVER
+	    ELSE  IF ( J .EQ. 2 ) THEN
+		READ ( A(1:J) , FMT2 ) NEWVER
+	    ELSE
+		GO TO 30
+	    END IF
+	    IF ( NEWVER .NE. IVERS + 1 ) GO TO 30
+	    IVERS = IVERS + 1
+	    WRITE ( * , 44 ) BOOK(1:16) , ICHAP , IVERS
+   44	    FORMAT ( 1H+ , A , 2I4 )
+	    LASTVR = LASTVR + 1
+	    IADVER(LASTVR) = LASTAD + 1 - IBASVR
+	    IBEG = J + 2
+	END IF
+   30	CONTINUE
+	DO 40 I = IBEG , MAXLIN
+	    IF ( A(I:I) .NE. ' ' ) THEN
+	       NWL = NWL + 1
+	       LWS(NWL) = I
+	       J = I
+	       GO TO 50
+	    END IF
+   40	CONTINUE
+	RETURN
+   50	CONTINUE
+	K = J
+	DO 60 I = J , MAXLIN
+	    IF ( A(I:I) .EQ. ' ') GO TO 70
+	    DO 80 I2 = 1 , 8
+		IF ( A(I:I) .EQ. PUNCT(I2) ) GO TO 70
+   80	    CONTINUE
+	    K = I
+   60	CONTINUE
+   70	CONTINUE
+	LWL(NWL) = K - J + 1
+   90	CONTINUE
+	IF ( K .EQ. MAXLIN ) RETURN
+	IBEG = K + 1
+	GO TO 30
+	END
+	SUBROUTINE CHPWRD ( I1ARAY , LEN )
+	CHARACTER*(*)I1ARAY
+	CHARACTER*512 CHIX
+	COMMON /BUF/ I2IX(256) , LASTAD , IRECIN , IRMOD
+	INTEGER*2 I2IX
+	EQUIVALENCE ( I2IX , CHIX )
+C
+	DO 100 I = 1 , LEN , 2
+	    IND = MOD ( LASTAD , 256 )
+	    IF ( IND .EQ. 0 ) THEN
+		IRECN = LASTAD / 256
+		WRITE ( 10 , REC = IRECN ) I2IX
+	    END IF
+	    LASTAD = LASTAD + 1
+	    IND = IND * 2
+	    CHIX(IND+1:IND+1) = I1ARAY(I:I)
+	    IF ( I .EQ. LEN ) GO TO 100
+	    CHIX(IND+2:IND+2) = I1ARAY(I+1:I+1)
+  100	CONTINUE
+	RETURN
+	END
+	SUBROUTINE I1PWRD ( I1ARAY , LEN )
+	INTEGER*1 I1ARAY(LEN) , I1IX
+	DIMENSION I1IX(512)
+	COMMON /BUF/ I2IX(256) , LASTAD , IRECIN , IRMOD
+	INTEGER*2 I2IX
+	EQUIVALENCE ( I2IX , I1IX )
+C
+	DO 100 I = 1 , LEN , 2
+	    IND = MOD ( LASTAD , 256 )
+	    IF ( IND .EQ. 0 ) THEN
+		IRECN = LASTAD / 256
+		WRITE ( 10 , REC = IRECN ) I2IX
+	    END IF
+	    LASTAD = LASTAD + 1
+	    IND = IND * 2
+	    I1IX(IND+1) = I1ARAY(I)
+	    IF ( I .EQ. LEN ) GO TO 100
+	    I1IX(IND+2) = I1ARAY(I+1)
+  100	CONTINUE
+	RETURN
+	END
+	SUBROUTINE I4PWRD ( I4WRD )
+	INTEGER*4 I4WRD , I4IX
+	DIMENSION I4IX(128)
+	COMMON /BUF/ I2IX(256) , LASTAD , IRECIN , IRMOD
+	INTEGER*2 I2IX
+	EQUIVALENCE ( I2IX , I4IX )
+	IND = MOD ( LASTAD , 256 ) / 2
+	IF ( IND .EQ. 0 ) THEN
+	    IRECN = LASTAD / 256
+	    WRITE ( 10 , REC = IRECN ) I2IX
+	END IF
+	I4IX(IND+1) = I4WRD
+	LASTAD = LASTAD + 2
+	RETURN
+	END
+	SUBROUTINE CHGWRD ( I1ARAY , LEN , IAD )
+	CHARACTER*(*)I1ARAY
+	CHARACTER*512 CHIX
+	COMMON /BUF/ I2IX(256) , LASTAD , IRECIN , IRMOD
+	INTEGER*2 I2IX
+	EQUIVALENCE ( I2IX , CHIX )
+C
+	IF ( MOD ( LEN , 2 ) .NE. 0 ) STOP 8989
+	INA = IAD - 1
+	DO 100 I = 1 , LEN , 2
+	    INA = INA + 1
+	    IND = MOD ( INA - 1 , 256 )
+	    IND = IND * 2 + 1
+	    IRECN = ( INA - 1 ) / 256 + 1
+	    IF ( IRECN .NE. IRECIN ) THEN
+		IF ( IRMOD .NE. 0 ) WRITE ( 10 , REC = IRECIN ) I2IX
+		IRECIN = IRECN
+		READ ( 10 , REC = IRECIN ) I2IX
+		IRMOD = 0
+	    END IF
+	    I1ARAY(I:I) = CHIX(IND:IND)
+	    I1ARAY(I+1:I+1) = CHIX(IND+1:IND+1)
+  100	CONTINUE
+	RETURN
+	END
+	SUBROUTINE I1GWRD ( I1ARAY , LEN , IAD )
+	INTEGER*1 I1ARAY(LEN) , I1IX
+	DIMENSION I1IX(512)
+	COMMON /BUF/ I2IX(256) , LASTAD , IRECIN , IRMOD
+	INTEGER*2 I2IX
+	EQUIVALENCE ( I2IX , I1IX )
+C
+	IF ( MOD ( LEN , 2 ) .NE. 0 ) STOP 8989
+	INA = IAD - 1
+	DO 100 I = 1 , LEN , 2
+	    INA = INA + 1
+	    IND = MOD ( INA - 1 , 256 )
+	    IND = IND * 2 + 1
+	    IRECN = ( INA - 1 ) / 256 + 1
+	    IF ( IRECN .NE. IRECIN ) THEN
+		IF ( IRMOD .NE. 0 ) WRITE ( 10 , REC = IRECIN ) I2IX
+		IRECIN = IRECN
+		READ ( 10 , REC = IRECIN ) I2IX
+		IRMOD = 0
+	    END IF
+	    I1ARAY(I) = I1IX(IND)
+	    I1ARAY(I+1) = I1IX(IND+1)
+  100	CONTINUE
+	RETURN
+	END
+	SUBROUTINE I4GWRD ( I4WRD , IAD )
+	INTEGER*4 I4WRD , I4IX
+	DIMENSION I4IX(128)
+	COMMON /BUF/ I2IX(256) , LASTAD , IRECIN , IRMOD
+	INTEGER*2 I2IX
+	EQUIVALENCE ( I2IX , I4IX )
+	IND = ( MOD ( IAD - 1 , 256 ) + 1 ) / 2 + 1
+	IRECN = ( IAD - 1 ) / 256 + 1
+	IF ( IRECN .NE. IRECIN ) THEN
+	    IF ( IRMOD .NE. 0 ) WRITE ( 10 , REC = IRECIN ) I2IX
+	    IRECIN = IRECN
+	    READ ( 10 , REC = IRECIN ) I2IX
+	    IRMOD = 0
+	END IF
+	I4WRD = I4IX(IND)
+	RETURN
+	END
+	SUBROUTINE GETWRD ( IHS , IAD )
+	COMMON /BUF/ I2IX(256) , LASTAD , IRECIN , IRMOD
+	INTEGER*2 I2IX
+	INTEGER*2 IHS
+	IND = MOD ( IAD - 1 , 256 ) + 1
+	IRECN = ( IAD - 1 ) / 256 + 1
+	IF ( IRECN .NE. IRECIN ) THEN
+	    IF ( IRMOD .NE. 0 ) WRITE ( 10 , REC = IRECIN ) I2IX
+	    IRECIN = IRECN
+	    READ ( 10 , REC = IRECIN ) I2IX
+	    IRMOD = 0
+	END IF
+	IHS = I2IX(IND)
+	RETURN
+	END
+	SUBROUTINE PUTWRD ( IHS , IAD )
+	COMMON /BUF/ I2IX(256) , LASTAD , IRECIN , IRMOD
+	INTEGER*2 I2IX
+	INTEGER*2 IHS
+	IND = MOD ( IAD - 1 , 256 ) + 1
+	IRECN = ( IAD - 1 ) / 256 + 1
+	IF ( IRECN .NE. IRECIN ) THEN
+	    IF ( IRMOD .NE. 0 ) WRITE ( 10 , REC = IRECIN ) I2IX
+	    IRECIN = IRECN
+	    READ ( 10 , REC = IRECIN ) I2IX
+	END IF
+	IRMOD = 1
+	I2IX(IND) = IHS
+	RETURN
+	END
+	SUBROUTINE NCODE ( K , ALN , IO )
+	CHARACTER*(*) ALN
+	IF ( K .LT. 10 ) THEN
+	    WRITE ( ALN , 10 ) K
+   10	    FORMAT ( I1 )
+	    IO = 2
+	    RETURN
+	ELSE IF ( K .LT. 100 ) THEN
+	    WRITE ( ALN , 100 ) K
+  100	    FORMAT ( I2 )
+	    IO = 3
+	    RETURN
+	ELSE
+	    WRITE ( ALN , 1000 ) K
+ 1000	    FORMAT ( I3 )
+	    IO = 4
+	    RETURN
+	END IF
+	END
